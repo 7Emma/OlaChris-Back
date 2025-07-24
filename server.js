@@ -70,7 +70,10 @@ console.log("[MONGO] Modèle 'User' prêt");
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "https://localhost:5173", // Votre URL frontend
+  origin: [
+    "http://localhost:5173",         // ton frontend local
+    "https://ola-chris-web.netlify.app"  // ton frontend déployé
+  ],
   // origin: process.env.FRONTEND_URL || "http://localhost:5173",
   // Permet les requêtes avec des cookies (authentification)
   credentials: true,
