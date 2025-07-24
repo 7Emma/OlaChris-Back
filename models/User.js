@@ -22,9 +22,13 @@ const userSchema = new mongoose.Schema(
       enum: ["Bronze", "Silver", "Gold", "Platinum"],
       default: "Bronze",
     },
-    // NOUVEAU CHAMP : Tableau pour stocker les IDs des produits favoris
-    favorites: [{ type: String }], // Utilisez 'Number' si vos IDs de produits sont numériques
-    // Si ce sont des chaînes (ex: ObjectId), utilisez 'String'
+    favorites: [{ type: Number }], // Remis à 'Number' pour les IDs de produits
+    // NOUVEAU CHAMP : Rôle de l'utilisateur
+    role: {
+      type: String,
+      enum: ["user", "admin"], // Les rôles possibles
+      default: "user", // Rôle par défaut pour les nouveaux utilisateurs
+    },
   },
   { timestamps: true }
 );

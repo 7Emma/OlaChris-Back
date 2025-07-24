@@ -8,9 +8,6 @@ const cors = require("cors");
 const { OAuth2Client } = require("google-auth-library");
 require("dotenv").config();
 
-// Importez les userRoutes
-const userRoutes = require("./routes/userRoutes");
-
 console.log("[ENV] Chargement des variables d'environnement...");
 console.log(`[CONFIG] Port: ${process.env.PORT || 5000}`);
 console.log(
@@ -46,41 +43,9 @@ mongoose
   );
 
 // --- Modèle Utilisateur ---
-const userSchema = new mongoose.Schema(
-  {
-    firstName: { type: String, trim: true },
-    lastName: { type: String, trim: true },
-    email: { type: String, required: true, unique: true, trim: true },
-    password: { type: String },
-    phone: { type: String, trim: true },
-    googleId: { type: String, unique: true, sparse: true },
-    picture: { type: String },
-  },
-  { timestamps: true }
-);
+// IMPORTANT: Le schéma User est maintenant défini uniquement dans models/User.js
+const User = require("./models/User"); // Assurez-vous que ce chemin est correct
 
-// Middleware de hachage de mot de passe
-userSchema.pre("save", async function (next) {
-  if (this.isModified("password") && this.password) {
-    console.log(`[USER] Hachage du mot de passe pour ${this.email}`);
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-  }
-  next();
-});
-
-// Méthode de comparaison de mot de passe
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  if (!this.password) {
-    console.log(
-      `[AUTH] Tentative de connexion sans mot de passe (Google ID: ${this.googleId})`
-    );
-    return false;
-  }
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
-const User = require("./models/User");
 console.log("[MONGO] Modèle 'User' prêt");
 
 // --- Middlewares Express ---
@@ -89,11 +54,10 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173", // ton frontend local
-      "https://ola-chris-web.netlify.app", // ton frontend déployé
+      "http://localhost:5173", // Pour votre environnement de développement local
+      "[https://ola-chris-web.netlify.app](https://ola-chris-web.netlify.app)", // POUR VOTRE DÉPLOIEMENT NETLIFY
+      // Ajoutez d'autres origines si nécessaire
     ],
-    // origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    // Permet les requêtes avec des cookies (authentification)
     credentials: true,
   })
 );
@@ -111,14 +75,24 @@ const authenticateToken = (req, res, next) => {
       .status(401)
       .json({ message: "Accès non autorisé : Aucun jeton fourni." });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, decodedUser) => {
+    // Rendre la fonction asynchrone
     if (err) {
       console.error("[JWT] Erreur de vérification :", err.message);
       res.clearCookie("jwt");
       return res.status(403).json({ message: "Jeton invalide ou expiré." });
     }
-    console.log(`[JWT] Utilisateur authentifié : ${user.email}`);
-    req.user = user;
+    // Récupérer l'utilisateur depuis la DB pour s'assurer que le rôle est à jour
+    const userFromDb = await User.findById(decodedUser.id).select("-password");
+    if (!userFromDb) {
+      res.clearCookie("jwt");
+      return res.status(404).json({ message: "Utilisateur non trouvé." });
+    }
+    // Attacher l'objet utilisateur complet (y compris le rôle) à la requête
+    req.user = userFromDb;
+    console.log(
+      `[JWT] Utilisateur authentifié : ${req.user.email}, Rôle: ${req.user.role}`
+    );
     next();
   });
 };
@@ -132,6 +106,7 @@ const generateTokenAndSetCookie = (res, user) => {
       firstName: user.firstName,
       lastName: user.lastName,
       picture: user.picture,
+      role: user.role, // Inclure le rôle dans le payload du JWT
     },
     JWT_SECRET,
     { expiresIn: "1h" }
@@ -141,7 +116,7 @@ const generateTokenAndSetCookie = (res, user) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     maxAge: 3600000,
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    sameSite: "Lax",
   });
   console.log(`[JWT] Token généré pour ${user.email}`);
 };
@@ -199,6 +174,7 @@ app.post("/api/auth/register", async (req, res) => {
       email,
       phone,
       password,
+      role: "user", // Définir le rôle par défaut
     });
 
     await newUser.save();
@@ -214,6 +190,7 @@ app.post("/api/auth/register", async (req, res) => {
         lastName: newUser.lastName,
         email: newUser.email,
         phone: newUser.phone,
+        role: newUser.role, // Inclure le rôle dans la réponse
       },
     });
   } catch (error) {
@@ -272,6 +249,7 @@ app.post("/api/auth/login", async (req, res) => {
         email: user.email,
         phone: user.phone,
         picture: user.picture,
+        role: user.role, // Inclure le rôle dans la réponse
       },
     });
   } catch (error) {
@@ -325,6 +303,7 @@ app.post("/api/auth/google", async (req, res) => {
         email,
         googleId,
         picture,
+        role: "user", // Définir le rôle par défaut pour les utilisateurs Google
       });
       await user.save();
     }
@@ -340,6 +319,7 @@ app.post("/api/auth/google", async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         picture: user.picture,
+        role: user.role, // Inclure le rôle dans la réponse
       },
     });
   } catch (error) {
@@ -353,7 +333,7 @@ app.get("/api/auth/status", authenticateToken, (req, res) => {
   console.log(`[STATUS] Vérification de session pour ${req.user.email}`);
   res.status(200).json({
     isAuthenticated: true,
-    user: req.user,
+    user: req.user, // req.user contient déjà le rôle grâce à authenticateToken
   });
 });
 
@@ -363,10 +343,18 @@ app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("jwt", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    sameSite: "Lax",
   });
   res.status(200).json({ message: "Déconnexion réussie." });
 });
+
+// --- Importation et utilisation des routes utilisateur ---
+const userRoutes = require("./routes/userRoutes"); // Assurez-vous que ce chemin est correct
+app.use("/api/user", userRoutes); // Toutes les routes dans userRoutes.js seront préfixées par /api/user
+
+// NOUVEAU : Importation et utilisation des routes admin
+const adminRoutes = require("./routes/adminRoutes"); // Assurez-vous que ce chemin est correct
+app.use("/api/admin", adminRoutes); // Toutes les routes dans adminRoutes.js seront préfixées par /api/admin
 
 // --- Exemple de route protégée ---
 app.get("/api/protected-resource", authenticateToken, (req, res) => {
@@ -379,10 +367,6 @@ app.get("/api/protected-resource", authenticateToken, (req, res) => {
   });
 });
 
-// --- Utilisation des Routes Utilisateur ---
-// Cela connecte less userRoutes au chemin de base /api/user
-app.use("/api/user", userRoutes); // <--- AJOUTEZ CETTE LIGNE
-
 // --- Démarrage du serveur ---
 app.listen(PORT, () => {
   console.log(`[SERVER] Serveur démarré sur http://localhost:${PORT}`);
@@ -392,5 +376,16 @@ app.listen(PORT, () => {
   console.log(`- POST   /api/auth/google`);
   console.log(`- GET    /api/auth/status (protégée)`);
   console.log(`- POST   /api/auth/logout`);
+  console.log(`- GET    /api/user/profile (protégée)`);
+  console.log(`- PUT    /api/user/profile (protégée)`);
+  console.log(`- GET    /api/user/orders (protégée)`);
+  console.log(`- GET    /api/user/favorites (protégée)`);
+  console.log(`- POST   /api/user/favorites/toggle/:productId (protégée)`);
   console.log(`- GET    /api/protected-resource (protégée)`);
+  // Ajout des routes admin dans le log
+  console.log(`- GET    /api/admin/users (protégée par admin)`);
+  console.log(`- POST   /api/admin/products (protégée par admin)`);
+  console.log(
+    `- PUT    /api/admin/orders/:orderId/status (protégée par admin)`
+  );
 });

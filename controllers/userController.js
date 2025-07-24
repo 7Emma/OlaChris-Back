@@ -1,13 +1,11 @@
 const User = require("../models/User"); // Assurez-vous que le chemin est correct vers votre modèle User
+const bcrypt = require("bcryptjs"); // Importez bcryptjs pour hacher le mot de passe
 
 // @desc    Récupérer le profil utilisateur
 // @route   GET /api/user/profile
 // @access  Privé
 exports.getUserProfile = async (req, res) => {
   try {
-    // req.user est rempli par le middleware authenticateToken
-    // Il contient déjà les champs sélectionnés dans authMiddleware.js
-    // Si vous avez besoin de plus de champs, vous devrez faire un User.findById(req.user._id)
     res.json(req.user);
   } catch (error) {
     console.error(
@@ -25,7 +23,7 @@ exports.getUserProfile = async (req, res) => {
 // @access  Privé
 exports.updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user._id; // ID utilisateur de l'authentification
+    const userId = req.user._id;
     const updates = req.body;
 
     const user = await User.findById(userId);
@@ -34,7 +32,6 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
 
-    // Validation de base des champs et mise à jour
     const fieldsToUpdate = [
       "firstName",
       "lastName",
@@ -47,7 +44,6 @@ exports.updateUserProfile = async (req, res) => {
     ];
     fieldsToUpdate.forEach((field) => {
       if (updates[field] !== undefined) {
-        // Empêcher la modification de l'email si un email Google est déjà défini
         if (
           field === "email" &&
           user.googleId &&
@@ -56,20 +52,14 @@ exports.updateUserProfile = async (req, res) => {
           console.warn(
             `[UPDATE PROFILE] Tentative de changer l'email Google pour ${user.email}`
           );
-          // Vous pouvez choisir de renvoyer une erreur ou d'ignorer la mise à jour de l'email
-          // Pour l'instant, nous ignorons, mais une erreur serait plus explicite pour l'utilisateur
         } else {
           user[field] = updates[field];
         }
       }
     });
 
-    // Optionnel: gérer le changement de mot de passe ici si nécessaire, mais séparément
-    // if (updates.password) { ... }
+    await user.save({ validateBeforeSave: true });
 
-    await user.save({ validateBeforeSave: true }); // Sauvegarder avec validation Mongoose
-
-    // Renvoyer les données utilisateur mises à jour (sans le mot de passe)
     res.json({
       message: "Profil mis à jour avec succès !",
       user: {
@@ -86,7 +76,7 @@ exports.updateUserProfile = async (req, res) => {
         memberSince: user.memberSince,
         points: user.points,
         level: user.level,
-        avatar: user.picture, // Utilisez 'picture' pour l'avatar depuis Google ou par défaut
+        avatar: user.picture,
       },
     });
   } catch (error) {
@@ -95,14 +85,15 @@ exports.updateUserProfile = async (req, res) => {
       error
     );
     if (error.code === 11000) {
-      // Erreur de clé dupliquée (par exemple, l'e-mail existe déjà)
       return res
         .status(400)
         .json({ message: "Cette adresse e-mail est déjà utilisée." });
     }
-    res.status(500).json({
-      message: "Échec de la mise à jour du profil. Veuillez réessayer.",
-    });
+    res
+      .status(500)
+      .json({
+        message: "Échec de la mise à jour du profil. Veuillez réessayer.",
+      });
   }
 };
 
@@ -111,7 +102,6 @@ exports.updateUserProfile = async (req, res) => {
 // @access  Privé
 exports.getRecentOrders = async (req, res) => {
   try {
-    // Dans une application réelle, vous feriez une requête à votre DB des commandes ici
     const simulatedOrders = [
       {
         id: "CMD001",
@@ -138,26 +128,27 @@ exports.getRecentOrders = async (req, res) => {
     res.json(simulatedOrders);
   } catch (error) {
     console.error("Erreur lors de la récupération des commandes :", error);
-    res.status(500).json({
-      message: "Erreur serveur lors de la récupération des commandes.",
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erreur serveur lors de la récupération des commandes.",
+      });
   }
 };
 
-// @desc    Récupérer les produits favoris de l'utilisateur
+// @desc    Récupérer les IDs des produits favoris de l'utilisateur
 // @route   GET /api/user/favorites
 // @access  Privé
 exports.getFavoriteProducts = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id); // Récupérer l'utilisateur complet
+    const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
-    // Assurez-vous que 'user.favorites' est un tableau d'IDs
     const favoriteProductIds = user.favorites
       ? user.favorites.map((id) => id)
-      : []; // Pas besoin de toString si c'est déjà un nombre
-    res.status(200).json({ favoriteIds: favoriteProductIds }); // Renvoie un objet avec la clé 'favoriteIds'
+      : [];
+    res.status(200).json({ favoriteIds: favoriteProductIds });
   } catch (error) {
     console.error("Erreur lors de la récupération des favoris :", error);
     res
@@ -170,48 +161,46 @@ exports.getFavoriteProducts = async (req, res) => {
 // @route   POST /api/user/favorites/toggle/:productId
 // @access  Privé
 exports.toggleFavoriteProduct = async (req, res) => {
-  const { productId } = req.params; // L'ID du produit vient des paramètres de l'URL
+  const { productId } = req.params;
 
   try {
-    const user = await User.findById(req.user._id); // Récupérer l'utilisateur complet
+    const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
 
-    // Assurez-vous que le champ 'favorites' existe et est un tableau dans votre modèle User
-    // Initialisez-le si ce n'est pas déjà fait
     if (!user.favorites) {
       user.favorites = [];
     }
 
-    // Les IDs de produits sont maintenant des chaînes (String)
-    const productIdStr = String(productId);
-    const index = user.favorites.indexOf(productIdStr);
+    const productIdNum = parseInt(productId, 10);
+    if (isNaN(productIdNum)) {
+      return res.status(400).json({ message: "ID de produit invalide." });
+    }
+
+    const index = user.favorites.indexOf(productIdNum);
 
     let isFavorite;
     if (index > -1) {
-      // Le produit est déjà favori, le retirer
       user.favorites.splice(index, 1);
       isFavorite = false;
       console.log(
-        `[Backend] Produit ${productIdStr} retiré des favoris de ${user.email}`
+        `[Backend] Produit ${productIdNum} retiré des favoris de ${user.email}`
       );
     } else {
-      // Le produit n'est pas favori, l'ajouter
-      user.favorites.push(productIdStr);
+      user.favorites.push(productIdNum);
       isFavorite = true;
       console.log(
-        `[Backend] Produit ${productIdStr} ajouté aux favoris de ${user.email}`
+        `[Backend] Produit ${productIdNum} ajouté aux favoris de ${user.email}`
       );
     }
 
-    await user.save(); // Sauvegarder les modifications dans la base de données
+    await user.save();
 
-    // Renvoyer la liste mise à jour des IDs de produits favoris et le nouvel état
     res.status(200).json({
       isFavorite,
-      favoriteProductIds: user.favorites.map((id) => id), // IDs sous forme de chaînes
+      favoriteProductIds: user.favorites.map((id) => id),
     });
   } catch (error) {
     console.error(
@@ -221,5 +210,121 @@ exports.toggleFavoriteProduct = async (req, res) => {
     res
       .status(500)
       .json({ message: "Erreur serveur lors de la mise à jour des favoris." });
+  }
+};
+
+// @desc    Récupérer tous les utilisateurs (Admin seulement)
+// @route   GET /api/admin/users
+// @access  Privé/Admin
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Récupère tous les utilisateurs sauf les mots de passe et les Google IDs sensibles
+    const users = await User.find({}).select("-password -googleId");
+    res.json(users);
+  } catch (error) {
+    console.error(
+      "Erreur backend lors de la récupération des utilisateurs (admin):",
+      error
+    );
+    res
+      .status(500)
+      .json({
+        message: "Erreur serveur lors de la récupération des utilisateurs.",
+      });
+  }
+};
+
+// @desc    Créer un nouvel utilisateur avec un rôle spécifié (Admin seulement)
+// @route   POST /api/admin/users
+// @access  Privé/Admin
+exports.createUserByAdmin = async (req, res) => {
+  const { firstName, lastName, email, phone, password, role } = req.body;
+  console.log(
+    `[Admin] Tentative de création d'utilisateur: ${email} avec rôle: ${role}`
+  );
+
+  // Validation de base des champs requis
+  if (!firstName || !lastName || !email || !password || !role) {
+    return res
+      .status(400)
+      .json({
+        message:
+          "Tous les champs requis (prénom, nom, email, mot de passe, rôle) doivent être fournis.",
+      });
+  }
+
+  // Validation du format de l'email
+  if (!/\S+@\S+\.\S+/.test(email)) {
+    return res.status(400).json({ message: "Format d'email invalide." });
+  }
+
+  // Validation de la force du mot de passe
+  if (
+    password.length < 8 ||
+    !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(password)
+  ) {
+    return res.status(400).json({
+      message:
+        "Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.",
+    });
+  }
+
+  // Validation du rôle
+  const validRoles = ["user", "admin"]; // Assurez-vous que cela correspond à votre enum dans models/User.js
+  if (!validRoles.includes(role)) {
+    return res
+      .status(400)
+      .json({
+        message: `Rôle invalide. Les rôles autorisés sont: ${validRoles.join(
+          ", "
+        )}.`,
+      });
+  }
+
+  try {
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res
+        .status(409)
+        .json({ message: "Un utilisateur avec cet email existe déjà." });
+    }
+
+    const newUser = new User({
+      firstName,
+      lastName,
+      email,
+      phone, // Le téléphone est optionnel ici si non requis par l'admin
+      password, // Le mot de passe sera haché par le middleware pre('save')
+      role, // Assigner le rôle spécifié
+    });
+
+    await newUser.save();
+    console.log(
+      `[Admin] Utilisateur créé avec succès: ${email}, Rôle: ${role}`
+    );
+
+    // Ne pas générer de token JWT ni définir de cookie pour l'utilisateur créé ici,
+    // car c'est l'admin qui crée l'utilisateur, pas l'utilisateur lui-même qui se connecte.
+    res.status(201).json({
+      message: "Utilisateur créé avec succès !",
+      user: {
+        _id: newUser._id,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        email: newUser.email,
+        phone: newUser.phone,
+        role: newUser.role,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "[Admin] Erreur serveur lors de la création d'utilisateur:",
+      error
+    );
+    res
+      .status(500)
+      .json({
+        message: "Erreur serveur lors de la création de l'utilisateur.",
+      });
   }
 };
