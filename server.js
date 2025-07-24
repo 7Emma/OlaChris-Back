@@ -51,11 +51,12 @@ console.log("[MONGO] Modèle 'User' prêt");
 // --- Middlewares Express ---
 app.use(express.json());
 app.use(cookieParser());
+// FIX CORS: Autoriser plusieurs origines, y compris Netlify
 app.use(
   cors({
     origin: [
       "http://localhost:5173", // Pour votre environnement de développement local
-      "[https://ola-chris-web.netlify.app](https://ola-chris-web.netlify.app)", // POUR VOTRE DÉPLOIEMENT NETLIFY
+      "https://ola-chris-web.netlify.app", // POUR VOTRE DÉPLOIEMENT NETLIFY
       // Ajoutez d'autres origines si nécessaire
     ],
     credentials: true,
@@ -349,11 +350,11 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 // --- Importation et utilisation des routes utilisateur ---
-const userRoutes = require("./routes/userRoutes"); // Assurez-vous que ce chemin est correct
-app.use("/api/user", userRoutes); // Toutes les routes dans userRoutes.js seront préfixées par /api/user
+const userRoutes = require("./routes/userRoutes");
+app.use("/api/user", userRoutes);
 
 // NOUVEAU : Importation et utilisation des routes admin
-const adminRoutes = require("./routes/adminRoutes"); // Assurez-vous que ce chemin est correct
+const adminRoutes = require("./routes/adminRoutes");
 app.use("/api/admin", adminRoutes); // Toutes les routes dans adminRoutes.js seront préfixées par /api/admin
 
 // --- Exemple de route protégée ---
