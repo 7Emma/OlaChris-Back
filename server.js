@@ -63,14 +63,16 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-const User = mongoose.model("User", userSchema);
+const User = require("./models/User");
 console.log("[MONGO] Modèle 'User' prêt");
 
 // --- Middlewares Express ---
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: process.env.FRONTEND_URL || "https://localhost:5173", // Votre URL frontend
+  // origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  // Permet les requêtes avec des cookies (authentification)
   credentials: true,
 }));
 console.log("[EXPRESS] Middlewares chargés (JSON, CORS, Cookies)");
