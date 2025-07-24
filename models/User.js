@@ -22,6 +22,9 @@ const userSchema = new mongoose.Schema(
       enum: ["Bronze", "Silver", "Gold", "Platinum"],
       default: "Bronze",
     },
+    // NOUVEAU CHAMP : Tableau pour stocker les IDs des produits favoris
+    favorites: [{ type: Number }], // Utilisez 'Number' si vos IDs de produits sont numériques
+    // Si ce sont des chaînes (ex: ObjectId), utilisez 'String'
   },
   { timestamps: true }
 );

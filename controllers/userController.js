@@ -1,4 +1,4 @@
-const User = require('../models/User'); // Votre modèle utilisateur
+const User = require("../models/User"); // Assurez-vous que le chemin est correct vers votre modèle User
 
 // @desc    Récupérer le profil utilisateur
 // @route   GET /api/user/profile
@@ -7,10 +7,16 @@ exports.getUserProfile = async (req, res) => {
   try {
     // req.user est rempli par le middleware authenticateToken
     // Il contient déjà les champs sélectionnés dans authMiddleware.js
+    // Si vous avez besoin de plus de champs, vous devrez faire un User.findById(req.user._id)
     res.json(req.user);
   } catch (error) {
-    console.error('Erreur lors de la récupération du profil utilisateur :', error);
-    res.status(500).json({ message: 'Erreur serveur lors de la récupération du profil.' });
+    console.error(
+      "Erreur lors de la récupération du profil utilisateur :",
+      error
+    );
+    res
+      .status(500)
+      .json({ message: "Erreur serveur lors de la récupération du profil." });
   }
 };
 
@@ -25,21 +31,35 @@ exports.updateUserProfile = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+      return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
 
     // Validation de base des champs et mise à jour
-    const fieldsToUpdate = ['firstName', 'lastName', 'email', 'phone', 'dateOfBirth', 'address', 'city', 'postalCode'];
-    fieldsToUpdate.forEach(field => {
+    const fieldsToUpdate = [
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "dateOfBirth",
+      "address",
+      "city",
+      "postalCode",
+    ];
+    fieldsToUpdate.forEach((field) => {
       if (updates[field] !== undefined) {
         // Empêcher la modification de l'email si un email Google est déjà défini
-        if (field === 'email' && user.googleId && updates.email !== user.email) {
-            console.warn(`[UPDATE PROFILE] Tentative de changer l'email Google pour ${user.email}`);
-            // Vous pouvez choisir de renvoyer une erreur ou d'ignorer la mise à jour de l'email
-            // Pour l'instant, nous ignorons, mais une erreur serait plus explicite pour l'utilisateur
-            // return res.status(400).json({ message: "Impossible de modifier l'e-mail lié à un compte Google." });
+        if (
+          field === "email" &&
+          user.googleId &&
+          updates.email !== user.email
+        ) {
+          console.warn(
+            `[UPDATE PROFILE] Tentative de changer l'email Google pour ${user.email}`
+          );
+          // Vous pouvez choisir de renvoyer une erreur ou d'ignorer la mise à jour de l'email
+          // Pour l'instant, nous ignorons, mais une erreur serait plus explicite pour l'utilisateur
         } else {
-            user[field] = updates[field];
+          user[field] = updates[field];
         }
       }
     });
@@ -51,7 +71,7 @@ exports.updateUserProfile = async (req, res) => {
 
     // Renvoyer les données utilisateur mises à jour (sans le mot de passe)
     res.json({
-      message: 'Profil mis à jour avec succès !',
+      message: "Profil mis à jour avec succès !",
       user: {
         _id: user._id,
         firstName: user.firstName,
@@ -70,11 +90,21 @@ exports.updateUserProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du profil utilisateur :', error);
-    if (error.code === 11000) { // Erreur de clé dupliquée (par exemple, l'e-mail existe déjà)
-      return res.status(400).json({ message: 'Cette adresse e-mail est déjà utilisée.' });
+    console.error(
+      "Erreur lors de la mise à jour du profil utilisateur :",
+      error
+    );
+    if (error.code === 11000) {
+      // Erreur de clé dupliquée (par exemple, l'e-mail existe déjà)
+      return res
+        .status(400)
+        .json({ message: "Cette adresse e-mail est déjà utilisée." });
     }
-    res.status(500).json({ message: 'Échec de la mise à jour du profil. Veuillez réessayer.' });
+    res
+      .status(500)
+      .json({
+        message: "Échec de la mise à jour du profil. Veuillez réessayer.",
+      });
   }
 };
 
@@ -85,31 +115,118 @@ exports.getRecentOrders = async (req, res) => {
   try {
     // Dans une application réelle, vous feriez une requête à votre DB des commandes ici
     const simulatedOrders = [
-      { id: "CMD001", date: "2024-07-20", items: 12, total: 89.50, status: "Livrée" },
-      { id: "CMD002", date: "2024-07-15", items: 8, total: 156.20, status: "Livrée" },
-      { id: "CMD003", date: "2024-07-10", items: 15, total: 203.80, status: "En cours" }
+      {
+        id: "CMD001",
+        date: "2024-07-20",
+        items: 12,
+        total: 89.5,
+        status: "Livrée",
+      },
+      {
+        id: "CMD002",
+        date: "2024-07-15",
+        items: 8,
+        total: 156.2,
+        status: "Livrée",
+      },
+      {
+        id: "CMD003",
+        date: "2024-07-10",
+        items: 15,
+        total: 203.8,
+        status: "En cours",
+      },
     ];
     res.json(simulatedOrders);
   } catch (error) {
-    console.error('Erreur lors de la récupération des commandes :', error);
-    res.status(500).json({ message: 'Erreur serveur lors de la récupération des commandes.' });
+    console.error("Erreur lors de la récupération des commandes :", error);
+    res
+      .status(500)
+      .json({
+        message: "Erreur serveur lors de la récupération des commandes.",
+      });
   }
 };
 
-// @desc    Récupérer les produits favoris de l'utilisateur (simulé)
+// @desc    Récupérer les produits favoris de l'utilisateur
 // @route   GET /api/user/favorites
 // @access  Privé
 exports.getFavoriteProducts = async (req, res) => {
   try {
-    // Dans une application réelle, vous feriez une requête à votre DB des favoris ici
-    const simulatedFavorites = [
-      { id: 1, name: "Pain de mie complet", brand: "Bio Nature", price: 2.85, image: "🍞" },
-      { id: 2, name: "Yaourts nature x8", brand: "Fermier", price: 4.50, image: "🥛" },
-      { id: 3, name: "Pommes Golden", brand: "Verger du Sud", price: 3.20, image: "🍎" }
-    ];
-    res.json(simulatedFavorites);
+    const user = await User.findById(req.user._id); // Récupérer l'utilisateur complet
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur non trouvé." });
+    }
+    // Assurez-vous que 'user.favorites' est un tableau d'IDs
+    const favoriteProductIds = user.favorites
+      ? user.favorites.map((id) => id)
+      : []; // Pas besoin de toString si c'est déjà un nombre
+    res.status(200).json({ favoriteIds: favoriteProductIds }); // Renvoie un objet avec la clé 'favoriteIds'
   } catch (error) {
-    console.error('Erreur lors de la récupération des favoris :', error);
-    res.status(500).json({ message: 'Erreur serveur lors de la récupération des favoris.' });
+    console.error("Erreur lors de la récupération des favoris :", error);
+    res
+      .status(500)
+      .json({ message: "Erreur serveur lors de la récupération des favoris." });
+  }
+};
+
+// @desc    Ajouter ou retirer un produit des favoris de l'utilisateur
+// @route   POST /api/user/favorites/toggle/:productId
+// @access  Privé
+exports.toggleFavoriteProduct = async (req, res) => {
+  const { productId } = req.params; // L'ID du produit vient des paramètres de l'URL
+
+  try {
+    const user = await User.findById(req.user._id); // Récupérer l'utilisateur complet
+
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur non trouvé." });
+    }
+
+    // Assurez-vous que le champ 'favorites' existe et est un tableau dans votre modèle User
+    // Initialisez-le si ce n'est pas déjà fait
+    if (!user.favorites) {
+      user.favorites = [];
+    }
+
+    const productIdNum = parseInt(productId, 10); // Convertir l'ID en nombre (si vos IDs de produits sont numériques)
+    if (isNaN(productIdNum)) {
+      return res.status(400).json({ message: "ID de produit invalide." });
+    }
+
+    const index = user.favorites.indexOf(productIdNum); // Chercher l'ID du produit dans le tableau
+
+    let isFavorite;
+    if (index > -1) {
+      // Le produit est déjà favori, le retirer
+      user.favorites.splice(index, 1);
+      isFavorite = false;
+      console.log(
+        `[Backend] Produit ${productIdNum} retiré des favoris de ${user.email}`
+      );
+    } else {
+      // Le produit n'est pas favori, l'ajouter
+      user.favorites.push(productIdNum);
+      isFavorite = true;
+      console.log(
+        `[Backend] Produit ${productIdNum} ajouté aux favoris de ${user.email}`
+      );
+    }
+
+    await user.save(); // Sauvegarder les modifications dans la base de données
+
+    // Renvoyer la liste mise à jour des IDs de produits favoris et le nouvel état
+    res.status(200).json({
+      isFavorite,
+      favoriteProductIds: user.favorites.map((id) => id), // Assurez-vous qu'ils sont des nombres si le frontend les attend comme tels
+    });
+  } catch (error) {
+    console.error(
+      "Erreur serveur lors de la bascule du produit favori:",
+      error
+    );
+    res
+      .status(500)
+      .json({ message: "Erreur serveur lors de la mise à jour des favoris." });
   }
 };
