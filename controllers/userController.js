@@ -100,11 +100,9 @@ exports.updateUserProfile = async (req, res) => {
         .status(400)
         .json({ message: "Cette adresse e-mail est déjà utilisée." });
     }
-    res
-      .status(500)
-      .json({
-        message: "Échec de la mise à jour du profil. Veuillez réessayer.",
-      });
+    res.status(500).json({
+      message: "Échec de la mise à jour du profil. Veuillez réessayer.",
+    });
   }
 };
 
@@ -140,11 +138,9 @@ exports.getRecentOrders = async (req, res) => {
     res.json(simulatedOrders);
   } catch (error) {
     console.error("Erreur lors de la récupération des commandes :", error);
-    res
-      .status(500)
-      .json({
-        message: "Erreur serveur lors de la récupération des commandes.",
-      });
+    res.status(500).json({
+      message: "Erreur serveur lors de la récupération des commandes.",
+    });
   }
 };
 
@@ -189,12 +185,9 @@ exports.toggleFavoriteProduct = async (req, res) => {
       user.favorites = [];
     }
 
-    const productIdNum = parseInt(productId, 10); // Convertir l'ID en nombre (si vos IDs de produits sont numériques)
-    if (isNaN(productIdNum)) {
-      return res.status(400).json({ message: "ID de produit invalide." });
-    }
-
-    const index = user.favorites.indexOf(productIdNum); // Chercher l'ID du produit dans le tableau
+    // Les IDs de produits sont maintenant des chaînes (String)
+    const productIdStr = String(productId);
+    const index = user.favorites.indexOf(productIdStr);
 
     let isFavorite;
     if (index > -1) {
@@ -202,14 +195,14 @@ exports.toggleFavoriteProduct = async (req, res) => {
       user.favorites.splice(index, 1);
       isFavorite = false;
       console.log(
-        `[Backend] Produit ${productIdNum} retiré des favoris de ${user.email}`
+        `[Backend] Produit ${productIdStr} retiré des favoris de ${user.email}`
       );
     } else {
       // Le produit n'est pas favori, l'ajouter
-      user.favorites.push(productIdNum);
+      user.favorites.push(productIdStr);
       isFavorite = true;
       console.log(
-        `[Backend] Produit ${productIdNum} ajouté aux favoris de ${user.email}`
+        `[Backend] Produit ${productIdStr} ajouté aux favoris de ${user.email}`
       );
     }
 
@@ -218,7 +211,7 @@ exports.toggleFavoriteProduct = async (req, res) => {
     // Renvoyer la liste mise à jour des IDs de produits favoris et le nouvel état
     res.status(200).json({
       isFavorite,
-      favoriteProductIds: user.favorites.map((id) => id), // Assurez-vous qu'ils sont des nombres si le frontend les attend comme tels
+      favoriteProductIds: user.favorites.map((id) => id), // IDs sous forme de chaînes
     });
   } catch (error) {
     console.error(

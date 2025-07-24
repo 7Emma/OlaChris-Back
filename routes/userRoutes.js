@@ -11,5 +11,10 @@ router.put("/profile", authenticateToken, userController.updateUserProfile);
 // Routes pour les autres onglets (protégées par authentification)
 router.get("/orders", authenticateToken, userController.getRecentOrders);
 router.get("/favorites", authenticateToken, userController.getFavoriteProducts);
+router.post(
+  "/favorites/toggle/:id",
+  authenticateToken,
+  userController.toggleFavoriteProduct
+);
 
 module.exports = router;
