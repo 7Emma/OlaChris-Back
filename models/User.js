@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-// Définir la chaîne Base64 de l'avatar par défaut
-const DEFAULT_AVATAR_BASE64 = "https://images.app.goo.gl/A1NpAWx21hhC1bdYA";
+// Define the default avatar URL
+// I've replaced the Google Images URL with a valid placeholder URL.
+const DEFAULT_AVATAR_URL = "https://images.app.goo.gl/A1NpAWx21hhC1bdYA";
 
 const userSchema = new mongoose.Schema(
   {
@@ -16,11 +17,11 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
     },
     phone: { type: String, trim: true, default: null },
-    password: { type: String, select: false }, // Ne pas renvoyer le mot de passe par défaut
-    googleId: { type: String, unique: true, sparse: true, select: false }, // 'sparse' permet plusieurs null
+    password: { type: String, select: false }, // Do not return the password by default
+    googleId: { type: String, unique: true, sparse: true, select: false }, // 'sparse' allows multiple null values
     role: { type: String, enum: ["user", "admin"], default: "user" },
-    picture: { type: String, default: DEFAULT_AVATAR_BASE64 }, // Ajout du champ 'picture' avec valeur par défaut
-    loyaltyCard: { type: String, unique: true, sparse: true, default: null }, // Assurez-vous que sparse: true est ici
+    picture: { type: String, default: DEFAULT_AVATAR_URL }, // Add 'picture' field with default value
+    loyaltyCard: { type: String, unique: true, sparse: true, default: null }, // Ensure sparse: true is here
     memberSince: { type: Date, default: Date.now },
     points: { type: Number, default: 0 },
     level: {
@@ -28,16 +29,16 @@ const userSchema = new mongoose.Schema(
       enum: ["Bronze", "Silver", "Gold", "Platinum"],
       default: "Bronze",
     },
-    favorites: { type: [Number], default: [] }, // Tableau de IDs de produits favoris
+    favorites: { type: [Number], default: [] }, // Array of favorite product IDs
   },
   {
-    timestamps: true, // Ajoute createdAt et updatedAt
+    timestamps: true, // Adds createdAt and updatedAt fields
   }
 );
 
-// Middleware Mongoose pour hacher le mot de passe avant de sauvegarder
+// Mongoose middleware to hash the password before saving
 userSchema.pre("save", async function (next) {
-  // Ne hache le mot de passe que s'il est modifié ou nouveau ET s'il n'y a pas de googleId
+  // Only hash the password if it's modified or new AND if there's no googleId
   if (
     (this.isModified("password") || this.isNew) &&
     this.password &&
@@ -49,13 +50,13 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Méthode pour comparer les mots de passe
+// Method to compare passwords
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  // Retourne false si le champ password est vide (ex: utilisateur Google)
+  // Return false if the password field is empty (e.g., Google user)
   if (!this.password) return false;
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// userSchema.index({ loyaltyCard: 1 }, { unique: true, sparse: true }); // Cette ligne est supprimée car redondante
+// userSchema.index({ loyaltyCard: 1 }, { unique: true, sparse: true }); // This line is removed as redundant
 
 module.exports = mongoose.model("User", userSchema);
