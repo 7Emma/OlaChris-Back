@@ -41,6 +41,7 @@ exports.updateUserProfile = async (req, res) => {
       "address",
       "city",
       "postalCode",
+      "picture", // Assurez-vous que 'picture' est inclus ici pour la mise à jour
     ];
     fieldsToUpdate.forEach((field) => {
       if (updates[field] !== undefined) {
@@ -52,32 +53,46 @@ exports.updateUserProfile = async (req, res) => {
           console.warn(
             `[UPDATE PROFILE] Tentative de changer l'email Google pour ${user.email}`
           );
+          // Vous pouvez choisir de renvoyer une erreur ici si vous voulez empêcher le changement d'email Google
+          // return res.status(400).json({ message: "L'email des comptes Google ne peut pas être modifié." });
         } else {
           user[field] = updates[field];
         }
       }
     });
 
+    // Si un nouveau mot de passe est fourni, le hacher
+    if (updates.password && !user.googleId) {
+      // Ne pas hacher si c'est un compte Google
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(updates.password, salt);
+    }
+
     await user.save({ validateBeforeSave: true });
+
+    // Construire l'objet user à renvoyer, excluant les informations sensibles
+    const responseUser = {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      address: user.address,
+      city: user.city,
+      postalCode: user.postalCode,
+      loyaltyCard: user.loyaltyCard,
+      memberSince: user.memberSince,
+      points: user.points,
+      level: user.level,
+      picture: user.picture, // Assurez-vous que l'avatar est inclus
+      favorites: user.favorites,
+      role: user.role, // Inclure le rôle si pertinent pour le frontend
+    };
 
     res.json({
       message: "Profil mis à jour avec succès !",
-      user: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        dateOfBirth: user.dateOfBirth,
-        address: user.address,
-        city: user.city,
-        postalCode: user.postalCode,
-        loyaltyCard: user.loyaltyCard,
-        memberSince: user.memberSince,
-        points: user.points,
-        level: user.level,
-        avatar: user.picture,
-      },
+      user: responseUser,
     });
   } catch (error) {
     console.error(
@@ -89,11 +104,46 @@ exports.updateUserProfile = async (req, res) => {
         .status(400)
         .json({ message: "Cette adresse e-mail est déjà utilisée." });
     }
+    res.status(500).json({
+      message: "Échec de la mise à jour du profil. Veuillez réessayer.",
+    });
+  }
+};
+
+// @desc    Supprimer le profil de l'utilisateur connecté
+// @route   DELETE /api/user/profile
+// @access  Privé
+exports.deleteMyProfile = async (req, res) => {
+  try {
+    const userId = req.user._id; // L'ID de l'utilisateur est dans req.user grâce à authenticateToken
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "Profil utilisateur non trouvé." });
+    }
+
+    // Empêcher la suppression si l'utilisateur est un admin (si vous voulez un super-admin)
+    if (user.role === "admin") {
+      return res
+        .status(403)
+        .json({
+          message:
+            "Les comptes administrateurs ne peuvent pas être supprimés via cette route de profil. Veuillez contacter le support.",
+        });
+    }
+
+    await user.deleteOne(); // Supprime le document utilisateur
+    res
+      .status(200)
+      .json({ message: "Votre profil a été supprimé avec succès." });
+  } catch (error) {
+    console.error("Erreur serveur lors de la suppression du profil:", error);
     res
       .status(500)
-      .json({
-        message: "Échec de la mise à jour du profil. Veuillez réessayer.",
-      });
+      .json({ message: "Erreur serveur lors de la suppression du profil." });
   }
 };
 
@@ -128,11 +178,9 @@ exports.getRecentOrders = async (req, res) => {
     res.json(simulatedOrders);
   } catch (error) {
     console.error("Erreur lors de la récupération des commandes :", error);
-    res
-      .status(500)
-      .json({
-        message: "Erreur serveur lors de la récupération des commandes.",
-      });
+    res.status(500).json({
+      message: "Erreur serveur lors de la récupération des commandes.",
+    });
   }
 };
 
@@ -226,11 +274,9 @@ exports.getAllUsers = async (req, res) => {
       "Erreur backend lors de la récupération des utilisateurs (admin):",
       error
     );
-    res
-      .status(500)
-      .json({
-        message: "Erreur serveur lors de la récupération des utilisateurs.",
-      });
+    res.status(500).json({
+      message: "Erreur serveur lors de la récupération des utilisateurs.",
+    });
   }
 };
 
@@ -245,12 +291,10 @@ exports.createUserByAdmin = async (req, res) => {
 
   // Validation de base des champs requis
   if (!firstName || !lastName || !email || !password || !role) {
-    return res
-      .status(400)
-      .json({
-        message:
-          "Tous les champs requis (prénom, nom, email, mot de passe, rôle) doivent être fournis.",
-      });
+    return res.status(400).json({
+      message:
+        "Tous les champs requis (prénom, nom, email, mot de passe, rôle) doivent être fournis.",
+    });
   }
 
   // Validation du format de l'email
@@ -272,13 +316,11 @@ exports.createUserByAdmin = async (req, res) => {
   // Validation du rôle
   const validRoles = ["user", "admin"]; // Assurez-vous que cela correspond à votre enum dans models/User.js
   if (!validRoles.includes(role)) {
-    return res
-      .status(400)
-      .json({
-        message: `Rôle invalide. Les rôles autorisés sont: ${validRoles.join(
-          ", "
-        )}.`,
-      });
+    return res.status(400).json({
+      message: `Rôle invalide. Les rôles autorisés sont: ${validRoles.join(
+        ", "
+      )}.`,
+    });
   }
 
   try {
@@ -314,6 +356,7 @@ exports.createUserByAdmin = async (req, res) => {
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role,
+        picture: newUser.picture, // Assurez-vous que l'avatar est inclus dans la réponse de création
       },
     });
   } catch (error) {
@@ -321,10 +364,8 @@ exports.createUserByAdmin = async (req, res) => {
       "[Admin] Erreur serveur lors de la création d'utilisateur:",
       error
     );
-    res
-      .status(500)
-      .json({
-        message: "Erreur serveur lors de la création de l'utilisateur.",
-      });
+    res.status(500).json({
+      message: "Erreur serveur lors de la création de l'utilisateur.",
+    });
   }
 };
