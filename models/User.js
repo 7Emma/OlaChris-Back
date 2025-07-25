@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
     googleId: { type: String, unique: true, sparse: true, select: false }, // 'sparse' allows multiple null values
     role: { type: String, enum: ["user", "admin"], default: "user" },
     picture: { type: String, default: DEFAULT_AVATAR_URL }, // Add 'picture' field with default value
-    loyaltyCard: { type: String, unique: true, sparse: true, default: null }, // Ensure sparse: true is here
+    loyaltyCard: { type: String, unique: true, sparse: true }, // Ensure sparse: true is here
     memberSince: { type: Date, default: Date.now },
     points: { type: Number, default: 0 },
     level: {
