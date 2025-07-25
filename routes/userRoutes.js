@@ -2,10 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const userController = require("../controllers/userController");
-const { registerUser, loginUser } = require("../controllers/userController");
 
-router.post("/register", registerUser); // DONC accessible à /api/auth/register
-router.post("/login", loginUser); // DONC accessible à /api/auth/login
+// Route pour l'enregistrement d'un nouvel utilisateur
 router.post("/logout", authenticateToken, userController.logoutUser); // Route pour déconnexion
 // Route pour récupérer le profil de l'utilisateur connecté
 router.get("/profile", authenticateToken, userController.getUserProfile);
