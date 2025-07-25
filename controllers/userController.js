@@ -1,12 +1,11 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
+const User = require("../models/User"); // Assurez-vous que le chemin est correct vers votre modèle User
+const bcrypt = require("bcryptjs"); // Importez bcryptjs pour hacher le mot de passe
 
 // @desc    Récupérer le profil utilisateur
 // @route   GET /api/user/profile
 // @access  Privé
 exports.getUserProfile = async (req, res) => {
   try {
-    // Si l'utilisateur est authentifié, req.user est disponible grâce au middleware
     res.json(req.user);
   } catch (error) {
     console.error(
@@ -33,7 +32,6 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
 
-    // Liste des champs que l'utilisateur peut modifier
     const fieldsToUpdate = [
       "firstName",
       "lastName",
@@ -43,12 +41,9 @@ exports.updateUserProfile = async (req, res) => {
       "address",
       "city",
       "postalCode",
-      "picture", // Ajout de 'picture' pour la modification d'avatar
     ];
-
     fieldsToUpdate.forEach((field) => {
       if (updates[field] !== undefined) {
-        // Logique spécifique pour l'email des comptes Google
         if (
           field === "email" &&
           user.googleId &&
@@ -57,60 +52,32 @@ exports.updateUserProfile = async (req, res) => {
           console.warn(
             `[UPDATE PROFILE] Tentative de changer l'email Google pour ${user.email}`
           );
-          // Optionnel: Empêcher la modification de l'email pour les comptes Google connectés
-          // return res.status(400).json({ message: "L'email des comptes Google ne peut pas être modifié." });
         } else {
           user[field] = updates[field];
         }
       }
     });
 
-    // Optionnel: Gérer la modification du mot de passe séparément si nécessaire
-    if (updates.password && updates.newPassword && !user.googleId) {
-      if (!(await user.matchPassword(updates.password))) {
-        return res
-          .status(401)
-          .json({ message: "Mot de passe actuel incorrect." });
-      }
-      if (
-        updates.newPassword.length < 8 ||
-        !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(
-          updates.newPassword
-        )
-      ) {
-        return res.status(400).json({
-          message:
-            "Le nouveau mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.",
-        });
-      }
-      user.password = updates.newPassword; // Le pre-save hook de Mongoose hachera ce mot de passe
-    }
-
     await user.save({ validateBeforeSave: true });
-
-    // Construire l'objet user à renvoyer, excluant les informations sensibles
-    const responseUser = {
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      dateOfBirth: user.dateOfBirth,
-      address: user.address,
-      city: user.city,
-      postalCode: user.postalCode,
-      loyaltyCard: user.loyaltyCard,
-      memberSince: user.memberSince,
-      points: user.points,
-      level: user.level,
-      picture: user.picture, // Assurez-vous que l'avatar est inclus
-      favorites: user.favorites,
-      role: user.role, // Inclure le rôle si pertinent pour le frontend
-    };
 
     res.json({
       message: "Profil mis à jour avec succès !",
-      user: responseUser,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        dateOfBirth: user.dateOfBirth,
+        address: user.address,
+        city: user.city,
+        postalCode: user.postalCode,
+        loyaltyCard: user.loyaltyCard,
+        memberSince: user.memberSince,
+        points: user.points,
+        level: user.level,
+        avatar: user.picture,
+      },
     });
   } catch (error) {
     console.error(
@@ -276,6 +243,7 @@ exports.createUserByAdmin = async (req, res) => {
     `[Admin] Tentative de création d'utilisateur: ${email} avec rôle: ${role}`
   );
 
+  // Validation de base des champs requis
   if (!firstName || !lastName || !email || !password || !role) {
     return res
       .status(400)
@@ -285,10 +253,12 @@ exports.createUserByAdmin = async (req, res) => {
       });
   }
 
+  // Validation du format de l'email
   if (!/\S+@\S+\.\S+/.test(email)) {
     return res.status(400).json({ message: "Format d'email invalide." });
   }
 
+  // Validation de la force du mot de passe
   if (
     password.length < 8 ||
     !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(password)
@@ -299,7 +269,8 @@ exports.createUserByAdmin = async (req, res) => {
     });
   }
 
-  const validRoles = ["user", "admin"];
+  // Validation du rôle
+  const validRoles = ["user", "admin"]; // Assurez-vous que cela correspond à votre enum dans models/User.js
   if (!validRoles.includes(role)) {
     return res
       .status(400)
@@ -322,10 +293,9 @@ exports.createUserByAdmin = async (req, res) => {
       firstName,
       lastName,
       email,
-      phone,
-      password,
-      role,
-      // Le champ 'picture' prendra la valeur par défaut définie dans le modèle
+      phone, // Le téléphone est optionnel ici si non requis par l'admin
+      password, // Le mot de passe sera haché par le middleware pre('save')
+      role, // Assigner le rôle spécifié
     });
 
     await newUser.save();
@@ -333,6 +303,8 @@ exports.createUserByAdmin = async (req, res) => {
       `[Admin] Utilisateur créé avec succès: ${email}, Rôle: ${role}`
     );
 
+    // Ne pas générer de token JWT ni définir de cookie pour l'utilisateur créé ici,
+    // car c'est l'admin qui crée l'utilisateur, pas l'utilisateur lui-même qui se connecte.
     res.status(201).json({
       message: "Utilisateur créé avec succès !",
       user: {
@@ -342,7 +314,6 @@ exports.createUserByAdmin = async (req, res) => {
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role,
-        picture: newUser.picture, // Assurez-vous que l'avatar est inclus dans la réponse de création
       },
     });
   } catch (error) {
@@ -354,57 +325,6 @@ exports.createUserByAdmin = async (req, res) => {
       .status(500)
       .json({
         message: "Erreur serveur lors de la création de l'utilisateur.",
-      });
-  }
-};
-
-// @desc    Supprimer un utilisateur par ID (Admin seulement)
-// @route   DELETE /api/admin/users/:id
-// @access  Privé/Admin
-exports.deleteUserByAdmin = async (req, res) => {
-  const { id } = req.params;
-  console.log(`[Admin] Tentative de suppression d'utilisateur avec ID: ${id}`);
-
-  try {
-    // Empêcher un admin de se supprimer lui-même
-    if (req.user._id.toString() === id) {
-      return res
-        .status(403)
-        .json({
-          message:
-            "Un administrateur ne peut pas supprimer son propre compte via cette route.",
-        });
-    }
-
-    const userToDelete = await User.findById(id);
-
-    if (!userToDelete) {
-      console.log(
-        `[Admin] Utilisateur avec ID ${id} non trouvé pour suppression.`
-      );
-      return res.status(404).json({ message: "Utilisateur non trouvé." });
-    }
-
-    // Optionnel: Empêcher un admin de supprimer un autre admin (si vous voulez un super-admin)
-    // if (userToDelete.role === 'admin') {
-    //   return res.status(403).json({ message: "Vous ne pouvez pas supprimer un autre administrateur." });
-    // }
-
-    await userToDelete.deleteOne(); // Utilisez deleteOne() ou findByIdAndDelete()
-    console.log(
-      `[Admin] Utilisateur ${userToDelete.email} (ID: ${id}) supprimé avec succès.`
-    );
-
-    res.status(200).json({ message: "Utilisateur supprimé avec succès." });
-  } catch (error) {
-    console.error(
-      `[Admin] Erreur serveur lors de la suppression de l'utilisateur ${id}:`,
-      error
-    );
-    res
-      .status(500)
-      .json({
-        message: "Erreur serveur lors de la suppression de l'utilisateur.",
       });
   }
 };
