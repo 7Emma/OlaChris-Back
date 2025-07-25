@@ -1,5 +1,90 @@
 const User = require("../models/User"); // Assurez-vous que le chemin est correct vers votre modèle User
 const bcrypt = require("bcryptjs"); // Importez bcryptjs pour hacher le mot de passe
+const jwt = require("jsonwebtoken");
+
+// @desc    Inscription utilisateur
+// @route   POST /api/auth/register
+// @access  Public
+exports.registerUser = async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone } = req.body;
+
+    // Vérifie si l'utilisateur existe déjà
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email déjà utilisé." });
+    }
+
+    // Hachage du mot de passe
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Création de l'utilisateur
+    const newUser = await User.create({
+      firstName,
+      lastName,
+      email,
+      phone,
+      password: hashedPassword,
+    });
+
+    res.status(201).json({
+      message: "Inscription réussie.",
+      userId: newUser._id,
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'inscription:", error);
+    res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
+  }
+};
+
+// @desc    Connexion utilisateur
+// @route   POST /api/auth/login
+// @access  Public
+exports.loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Chercher l'utilisateur
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(401)
+        .json({ message: "Email ou mot de passe invalide." });
+    }
+
+    // Vérification du mot de passe
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ message: "Email ou mot de passe invalide." });
+    }
+
+    // Création du token JWT
+    const token = jwt.sign(
+      { _id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(200).json({
+      message: "Connexion réussie.",
+      token,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        picture: user.picture,
+      },
+    });
+  } catch (error) {
+    console.error("Erreur lors de la connexion:", error);
+    res.status(500).json({ message: "Erreur serveur lors de la connexion." });
+  }
+};
 
 // @desc    Récupérer le profil utilisateur
 // @route   GET /api/user/profile

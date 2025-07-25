@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const userController = require("../controllers/userController");
+const { registerUser, loginUser } = require("../controllers/userController");
 
 router.post("/register", registerUser); // DONC accessible à /api/auth/register
 router.post("/login", loginUser); // DONC accessible à /api/auth/login
@@ -27,6 +28,5 @@ router.post(
   authenticateToken,
   userController.toggleFavoriteProduct
 );
-
 
 module.exports = router;
