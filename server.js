@@ -212,15 +212,16 @@ app.post("/api/auth/login", async (req, res) => {
       .json({ message: "L'email et le mot de passe sont requis." });
   }
 
+  // Vérifier si l'utilisateur existe et le mot de passe est correct
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       console.log(`[LOGIN] Erreur: Email ${email} non trouvé`);
       return res
         .status(401)
         .json({ message: "Email ou mot de passe incorrect." });
     }
-
+    // Si l'utilisateur n'a pas de mot de passe (connexion Google), renvoyer une erreur
     if (!user.password && user.googleId) {
       console.log(
         `[LOGIN] Erreur: Utilisateur ${email} doit utiliser Google Auth`
@@ -229,7 +230,7 @@ app.post("/api/auth/login", async (req, res) => {
         .status(401)
         .json({ message: "Veuillez vous connecter avec Google." });
     }
-
+    // Vérifier le mot de passe
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       console.log(`[LOGIN] Erreur: Mot de passe incorrect pour ${email}`);
