@@ -43,7 +43,6 @@ mongoose
   );
 
 // --- Modèle Utilisateur ---
-// IMPORTANT: Le schéma User est maintenant défini uniquement dans models/User.js
 const User = require("./models/User"); // Assurez-vous que ce chemin est correct
 
 console.log("[MONGO] Modèle 'User' prêt");
@@ -51,7 +50,6 @@ console.log("[MONGO] Modèle 'User' prêt");
 // --- Middlewares Express ---
 app.use(express.json());
 app.use(cookieParser());
-// FIX CORS: Autoriser plusieurs origines, y compris Netlify
 app.use(
   cors({
     origin: [
@@ -77,7 +75,6 @@ const authenticateToken = (req, res, next) => {
       .json({ message: "Accès non autorisé : Aucun jeton fourni." });
 
   jwt.verify(token, JWT_SECRET, async (err, decodedUser) => {
-    // Rendre la fonction asynchrone
     if (err) {
       console.error("[JWT] Erreur de vérification :", err.message);
       res.clearCookie("jwt");
@@ -89,7 +86,7 @@ const authenticateToken = (req, res, next) => {
       res.clearCookie("jwt");
       return res.status(404).json({ message: "Utilisateur non trouvé." });
     }
-    // Attacher l'objet utilisateur complet (y compris le rôle) à la requête
+    // Attacher l'objet utilisateur complet (y compris le rôle et l'avatar) à la requête
     req.user = userFromDb;
     console.log(
       `[JWT] Utilisateur authentifié : ${req.user.email}, Rôle: ${req.user.role}`
@@ -176,6 +173,7 @@ app.post("/api/auth/register", async (req, res) => {
       phone,
       password,
       role: "user", // Définir le rôle par défaut
+      // 'picture' prendra la valeur par défaut du modèle si non fourni
     });
 
     await newUser.save();
@@ -192,10 +190,12 @@ app.post("/api/auth/register", async (req, res) => {
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role, // Inclure le rôle dans la réponse
+        picture: newUser.picture, // Inclure l'avatar par défaut ou fourni
       },
     });
   } catch (error) {
-    console.error("[REGISTER] Erreur serveur:", error);
+    console.error("[REGISTER] Erreur serveur:", error.message); // Log message
+    console.error("[REGISTER] Erreur stack:", error.stack); // Log stack trace
     res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
   }
 });
@@ -254,7 +254,8 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[LOGIN] Erreur serveur:", error);
+    console.error("[LOGIN] Erreur serveur:", error.message); // Log message
+    console.error("[LOGIN] Erreur stack:", error.stack); // Log stack trace
     res.status(500).json({ message: "Erreur serveur lors de la connexion." });
   }
 });
@@ -286,7 +287,7 @@ app.post("/api/auth/google", async (req, res) => {
           `[GOOGLE] Liaison du compte Google à l'utilisateur existant ${email}`
         );
         user.googleId = googleId;
-        user.picture = picture;
+        user.picture = picture; // Mettre à jour l'image Google si elle n'existait pas ou est différente
         await user.save();
       } else if (user.googleId !== googleId) {
         console.log(
@@ -303,7 +304,7 @@ app.post("/api/auth/google", async (req, res) => {
         lastName: name.split(" ").slice(1).join(" ") || "Google",
         email,
         googleId,
-        picture,
+        picture, // Utiliser l'image de Google
         role: "user", // Définir le rôle par défaut pour les utilisateurs Google
       });
       await user.save();
@@ -334,7 +335,7 @@ app.get("/api/auth/status", authenticateToken, (req, res) => {
   console.log(`[STATUS] Vérification de session pour ${req.user.email}`);
   res.status(200).json({
     isAuthenticated: true,
-    user: req.user, // req.user contient déjà le rôle grâce à authenticateToken
+    user: req.user, // req.user contient déjà le rôle et l'avatar grâce à authenticateToken
   });
 });
 
@@ -353,9 +354,9 @@ app.post("/api/auth/logout", (req, res) => {
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/user", userRoutes);
 
-// NOUVEAU : Importation et utilisation des routes admin
+// --- Importation et utilisation des routes admin ---
 const adminRoutes = require("./routes/adminRoutes");
-app.use("/api/admin", adminRoutes); // Toutes les routes dans adminRoutes.js seront préfixées par /api/admin
+app.use("/api/admin", adminRoutes);
 
 // --- Exemple de route protégée ---
 app.get("/api/protected-resource", authenticateToken, (req, res) => {
@@ -379,14 +380,14 @@ app.listen(PORT, () => {
   console.log(`- POST   /api/auth/logout`);
   console.log(`- GET    /api/user/profile (protégée)`);
   console.log(`- PUT    /api/user/profile (protégée)`);
+  console.log(`- DELETE /api/user/profile (protégée)`); // Nouvelle route pour la suppression de profil
   console.log(`- GET    /api/user/orders (protégée)`);
   console.log(`- GET    /api/user/favorites (protégée)`);
   console.log(`- POST   /api/user/favorites/toggle/:productId (protégée)`);
-  console.log(`- GET    /api/protected-resource (protégée)`);
-  // Ajout des routes admin dans le log
   console.log(`- GET    /api/admin/users (protégée par admin)`);
   console.log(`- POST   /api/admin/products (protégée par admin)`);
   console.log(
     `- PUT    /api/admin/orders/:orderId/status (protégée par admin)`
   );
+  console.log(`- GET    /api/protected-resource (protégée)`);
 });
