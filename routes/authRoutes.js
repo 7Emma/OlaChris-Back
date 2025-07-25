@@ -1,21 +1,21 @@
 const express = require("express");
 const router = express.Router();
-const authController = require("../controllers/authController");
-const { authenticateToken } = require("../middlewares/authMiddleware"); // AuthenticateToken est un middleware
+const authController = require("../controllers/authController"); // Ensure this path is correct
+const { authenticateToken } = require("../middlewares/authMiddleware"); // Import authenticateToken
 
-// Route d'enregistrement
+// POST /api/auth/register - Traditional registration
 router.post("/register", authController.registerUser);
 
-// Route de connexion
+// POST /api/auth/login - Traditional login
 router.post("/login", authController.loginUser);
 
-// Route d'authentification Google
-router.post("/google", authController.handleGoogleAuth);
+// POST /api/auth/google - Google registration/login
+router.post("/google", authController.googleAuth);
 
-// Route pour vérifier l'état d'authentification (nécessite d'être connecté)
-router.get("/status", authenticateToken, authController.checkAuthStatus);
+// GET /api/auth/status - Check session status (protected)
+router.get("/status", authenticateToken, authController.getAuthStatus);
 
-// Route de déconnexion
+// POST /api/auth/logout - Logout
 router.post("/logout", authController.logoutUser);
 
 module.exports = router;

@@ -1,47 +1,79 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
-const { generateTokenAndSetCookie } = require("../middlewares/authMiddleware");
+const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 
-// Initialiser le client Google OAuth2
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const JWT_SECRET = process.env.JWT_SECRET;
+const GOOGLE_CLIENT_ID_BACKEND = process.env.GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID_BACKEND);
 
-// @desc    Enregistrer un nouvel utilisateur
+// Helper function to generate JWT and set cookie
+const generateTokenAndSetCookie = (res, user) => {
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      picture: user.picture,
+      role: user.role,
+    },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  res.cookie("jwt", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 3600000,
+    sameSite: "Lax",
+  });
+  console.log(`[JWT] Token generated for ${user.email}`);
+};
+
+// @desc    Traditional user registration
 // @route   POST /api/auth/register
 // @access  Public
 exports.registerUser = async (req, res) => {
   const { firstName, lastName, email, phone, password, confirmPassword } =
     req.body;
-  console.log("[AUTH CONTROLLER] Nouvelle inscription:", email);
+  console.log("[REGISTER] New registration attempt:", email);
 
-  if (!firstName || !lastName || !email || !password || !confirmPassword) {
-    return res
-      .status(400)
-      .json({ message: "Veuillez remplir tous les champs obligatoires." });
+  if (
+    !firstName ||
+    !lastName ||
+    !email ||
+    !phone ||
+    !password ||
+    !confirmPassword
+  ) {
+    console.log("[REGISTER] Error: All fields are required");
+    return res.status(400).json({ message: "All fields are required." });
   }
 
   if (password !== confirmPassword) {
-    return res
-      .status(400)
-      .json({ message: "Les mots de passe ne correspondent pas." });
+    console.log("[REGISTER] Error: Passwords do not match");
+    return res.status(400).json({ message: "Passwords do not match." });
   }
 
   if (
     password.length < 8 ||
     !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(password)
   ) {
+    console.log("[REGISTER] Error: Weak password");
     return res.status(400).json({
       message:
-        "Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.",
+        "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character.",
     });
   }
 
   try {
     const userExists = await User.findOne({ email });
     if (userExists) {
+      console.log(`[REGISTER] Error: Email ${email} already in use`);
       return res
         .status(409)
-        .json({ message: "Un utilisateur avec cet email existe déjà." });
+        .json({ message: "A user with this email already exists." });
     }
 
     const newUser = new User({
@@ -50,68 +82,70 @@ exports.registerUser = async (req, res) => {
       email,
       phone,
       password,
+      role: "user",
     });
 
     await newUser.save();
+    console.log(`[REGISTER] New user created: ${email}`);
 
-    // Optionnel: Connexion automatique après l'inscription
     generateTokenAndSetCookie(res, newUser);
 
     res.status(201).json({
-      message: "Inscription réussie !",
+      message: "Registration successful!",
       user: {
         _id: newUser._id,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
         email: newUser.email,
         phone: newUser.phone,
-        // N'envoyez pas le mot de passe haché !
+        role: newUser.role,
+        picture: newUser.picture,
       },
     });
   } catch (error) {
-    console.error("[AUTH CONTROLLER] Erreur lors de l'inscription:", error);
-    res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
+    console.error("[REGISTER] Server error:", error.message);
+    console.error("[REGISTER] Error stack:", error.stack);
+    res.status(500).json({ message: "Server error during registration." });
   }
 };
 
-// @desc    Connecter un utilisateur
+// @desc    Traditional user login
 // @route   POST /api/auth/login
 // @access  Public
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log("[AUTH CONTROLLER] Tentative de connexion:", email);
+  console.log("[LOGIN] Attempting login:", email);
 
   if (!email || !password) {
+    console.log("[LOGIN] Error: Email and password required");
     return res
       .status(400)
-      .json({ message: "L'email et le mot de passe sont requis." });
+      .json({ message: "Email and password are required." });
   }
 
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      return res
-        .status(401)
-        .json({ message: "Email ou mot de passe incorrect." });
+      console.log(`[LOGIN] Error: Email ${email} not found`);
+      return res.status(401).json({ message: "Incorrect email or password." });
     }
 
     if (!user.password && user.googleId) {
-      return res
-        .status(401)
-        .json({ message: "Veuillez vous connecter avec Google." });
+      console.log(`[LOGIN] Error: User ${email} must use Google Auth`);
+      return res.status(401).json({ message: "Please log in with Google." });
     }
 
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res
-        .status(401)
-        .json({ message: "Email ou mot de passe incorrect." });
+      console.log(`[LOGIN] Error: Incorrect password for ${email}`);
+      return res.status(401).json({ message: "Incorrect email or password." });
     }
 
     generateTokenAndSetCookie(res, user);
+    console.log(`[LOGIN] Login successful for ${email}`);
 
     res.status(200).json({
-      message: "Connexion réussie !",
+      message: "Login successful!",
       user: {
         _id: user._id,
         firstName: user.firstName,
@@ -119,99 +153,109 @@ exports.loginUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         picture: user.picture,
-        // N'envoyez pas le mot de passe haché !
+        role: user.role,
       },
     });
   } catch (error) {
-    console.error("[AUTH CONTROLLER] Erreur lors de la connexion:", error);
-    res.status(500).json({ message: "Erreur serveur lors de la connexion." });
+    console.error("[LOGIN] Server error:", error.message);
+    console.error("[LOGIN] Error stack:", error.stack);
+    res.status(500).json({ message: "Server error during login." });
   }
 };
 
-// @desc    Connecter/Inscrire avec Google
+// @desc    Google registration/login
 // @route   POST /api/auth/google
 // @access  Public
-exports.handleGoogleAuth = async (req, res) => {
+exports.googleAuth = async (req, res) => {
   const { id_token } = req.body;
-  console.log("[AUTH CONTROLLER] Tentative de connexion Google");
+  console.log("[GOOGLE] Attempting Google login");
 
   if (!id_token) {
-    return res.status(400).json({ message: "ID Token Google manquant." });
+    console.log("[GOOGLE] Error: Missing ID Token");
+    return res.status(400).json({ message: "Missing Google ID Token." });
   }
 
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken: id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: GOOGLE_CLIENT_ID_BACKEND,
     });
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
+    console.log(`[GOOGLE] Token validated for ${email}`);
 
     let user = await User.findOne({ email });
 
     if (user) {
-      // Si l'utilisateur existe déjà
       if (!user.googleId) {
-        // Lier le compte Google si ce n'est pas déjà fait
+        console.log(
+          `[GOOGLE] Linking Google account to existing user ${email}`
+        );
         user.googleId = googleId;
         user.picture = picture;
         await user.save();
       } else if (user.googleId !== googleId) {
-        // Conflit si l'email est lié à un autre GoogleId
+        console.log(
+          `[GOOGLE] Conflict: Email ${email} already linked to another Google ID`
+        );
         return res.status(409).json({
-          message: "Cet email est déjà enregistré avec un autre compte Google.",
+          message:
+            "This email is already registered with another Google account.",
         });
       }
     } else {
-      // Créer un nouvel utilisateur s'il n'existe pas
+      console.log(`[GOOGLE] Creating new user for ${email}`);
       user = new User({
-        firstName: name.split(" ")[0] || "Utilisateur",
+        firstName: name.split(" ")[0] || "User",
         lastName: name.split(" ").slice(1).join(" ") || "Google",
         email,
         googleId,
         picture,
+        role: "user",
       });
       await user.save();
     }
 
     generateTokenAndSetCookie(res, user);
+    console.log(`[GOOGLE] Login successful for ${email}`);
 
     res.status(200).json({
-      message: "Connexion Google réussie !",
+      message: "Google login successful!",
       user: {
         _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
         picture: user.picture,
-        // N'envoyez pas de données sensibles
+        role: user.role,
       },
     });
   } catch (error) {
-    console.error("[AUTH CONTROLLER] Erreur d'authentification Google:", error);
-    res.status(401).json({ message: "Échec de l'authentification Google." });
+    console.error("[GOOGLE] Authentication error:", error);
+    res.status(401).json({ message: "Google authentication failed." });
   }
 };
 
-// @desc    Vérifier l'état de la session
+// @desc    Get session status
 // @route   GET /api/auth/status
-// @access  Privé (via authenticateToken)
-exports.checkAuthStatus = (req, res) => {
-  // Le middleware authenticateToken a déjà vérifié le token et attaché req.user
+// @access  Private (requires authenticateToken middleware)
+exports.getAuthStatus = async (req, res) => {
+  console.log(`[STATUS] Session check for ${req.user.email}`);
   res.status(200).json({
     isAuthenticated: true,
-    user: req.user, // Contient déjà les infos non sensibles attachées par le middleware
+    user: req.user,
   });
 };
 
-// @desc    Déconnecter un utilisateur
+// @desc    User logout
 // @route   POST /api/auth/logout
 // @access  Public
-exports.logoutUser = (req, res) => {
+exports.logoutUser = async (req, res) => {
+  console.log("[LOGOUT] User logout");
   res.clearCookie("jwt", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Lax",
   });
-  res.status(200).json({ message: "Déconnexion réussie." });
+  res.status(200).json({ message: "Logout successful." });
 };
