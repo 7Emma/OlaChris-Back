@@ -23,7 +23,7 @@ router.delete(
   "/users/:id",
   authenticateToken,
   isAdmin,
-  userController.deleteUserByAdmin
+  userController.deleteMyProfile
 );
 
 // Exemple : Route pour créer un produit (admin seulement)

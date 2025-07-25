@@ -3,8 +3,6 @@ const router = express.Router();
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const userController = require("../controllers/userController");
 
-// Route pour l'enregistrement d'un nouvel utilisateur
-router.post("/logout", authenticateToken, userController.logoutUser); // Route pour déconnexion
 // Route pour récupérer le profil de l'utilisateur connecté
 router.get("/profile", authenticateToken, userController.getUserProfile);
 
