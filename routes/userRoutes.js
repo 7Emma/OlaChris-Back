@@ -1,18 +1,26 @@
 const express = require("express");
 const router = express.Router();
+const { authenticateToken } = require("../middlewares/authMiddleware");
 const userController = require("../controllers/userController");
-const { authenticateToken } = require("../middlewares/authMiddleware"); // Votre middleware JWT
 
-// Récupérer le profil de l'utilisateur actuel
+// Route pour récupérer le profil de l'utilisateur connecté
 router.get("/profile", authenticateToken, userController.getUserProfile);
-// Mettre à jour le profil de l'utilisateur actuel
+
+// Route pour mettre à jour le profil de l'utilisateur connecté
 router.put("/profile", authenticateToken, userController.updateUserProfile);
 
-// Routes pour les autres onglets (protégées par authentification)
+// Route pour supprimer le profil de l'utilisateur connecté
+router.delete("/profile", authenticateToken, userController.deleteMyProfile);
+
+// Route pour récupérer les commandes récentes de l'utilisateur (simulé)
 router.get("/orders", authenticateToken, userController.getRecentOrders);
+
+// Route pour récupérer les IDs des produits favoris de l'utilisateur
 router.get("/favorites", authenticateToken, userController.getFavoriteProducts);
+
+// Route pour ajouter ou retirer un produit des favoris de l'utilisateur
 router.post(
-  "/favorites/toggle/:id",
+  "/favorites/toggle/:productId",
   authenticateToken,
   userController.toggleFavoriteProduct
 );
