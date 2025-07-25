@@ -56,8 +56,6 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Définition explicite de l'index pour loyaltyCard pour s'assurer que 'sparse' est appliqué
-// Ceci est une étape supplémentaire pour résoudre le problème persistant de l'index.
-userSchema.index({ loyaltyCard: 1 }, { unique: true, sparse: true });
+// userSchema.index({ loyaltyCard: 1 }, { unique: true, sparse: true }); // Cette ligne est supprimée car redondante
 
 module.exports = mongoose.model("User", userSchema);
