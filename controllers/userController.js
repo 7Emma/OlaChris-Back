@@ -127,12 +127,10 @@ exports.deleteMyProfile = async (req, res) => {
 
     // Empêcher la suppression si l'utilisateur est un admin (si vous voulez un super-admin)
     if (user.role === "admin") {
-      return res
-        .status(403)
-        .json({
-          message:
-            "Les comptes administrateurs ne peuvent pas être supprimés via cette route de profil. Veuillez contacter le support.",
-        });
+      return res.status(403).json({
+        message:
+          "Les comptes administrateurs ne peuvent pas être supprimés via cette route de profil. Veuillez contacter le support.",
+      });
     }
 
     await user.deleteOne(); // Supprime le document utilisateur
