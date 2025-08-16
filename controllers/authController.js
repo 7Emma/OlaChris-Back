@@ -2,7 +2,6 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
-const generateTokenAndSetCookie = require("../utils/generateToken");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const GOOGLE_CLIENT_ID_BACKEND = process.env.GOOGLE_CLIENT_ID;
@@ -30,6 +29,7 @@ const generateTokenAndSetCookie = (res, user) => {
     sameSite: "Lax",
   });
   console.log(`[JWT] Token generated for ${user.email}`);
+  return token;
 };
 
 // @desc    Traditional user registration
@@ -142,11 +142,12 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Incorrect email or password." });
     }
 
-    generateTokenAndSetCookie(res, user);
+    const token = generateTokenAndSetCookie(res, user);
     console.log(`[LOGIN] Login successful for ${email}`);
 
     res.status(200).json({
       message: "Login successful!",
+      token,
       user: {
         _id: user._id,
         firstName: user.firstName,

@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 
 // Define the default avatar URL
 // I've replaced the Google Images URL with a valid placeholder URL.
-const DEFAULT_AVATAR_URL = "https://images.app.goo.gl/A1NpAWx21hhC1bdYA";
+const DEFAULT_AVATAR_URL = "https://i.pravatar.cc/150?img=8";
 
 const userSchema = new mongoose.Schema(
   {
@@ -55,6 +55,13 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   // Return false if the password field is empty (e.g., Google user)
   if (!this.password) return false;
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+userSchema.methods.toJSON = function () {
+  const obj = this.toObject();
+  delete obj.password;
+  delete obj.googleId;
+  return obj;
 };
 
 // userSchema.index({ loyaltyCard: 1 }, { unique: true, sparse: true }); // This line is removed as redundant
